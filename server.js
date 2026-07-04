@@ -1,51 +1,70 @@
-// FONBACO SERVER.JS - BLOC 1/5
-// LOI: LES 5 COFFRES DU PRÉSIDENT
+// FONBACO SERVER.JS - BLOC 3/5
+// LOI: RÉPARTITION 50% APP | 48% GAGNANT | 2% BRÛLÉ + MONNAIE
 
 const express = require('express');
 const app = express();
 app.use(express.json());
 
-// BASE DE DONNÉES DES 5 COFFRES
-let users = {
-  "test-user": {
-    energie: 100, // COFFRE 1: PV. Max 100. +1/5min
-    pieces: 0, // COFFRE 2: Monnaie. 1P = 1FC
-    grade: 0, // COFFRE 3: Niveau 0→100
-    conserve: 0, // COFFRE 4: Épargne verrouillée
-    solde: 0 // COFFRE 5: Argent réel. Retrait 100$ min
-  }
-};
+// BASE DE DONNÉES
+let users = {"test-user": {energie: 100, pieces: 500, grade: 0, conserve: 0, solde: 0, xp: 0}};
+let caisseApp = 0; // Coffre de l'Application
+let caisseBrule = 0; // Coffre brûlé
 
-// ROUTE 1: VOIR LES 5 COFFRES
-app.get('/coffres/:userId', (req, res) => {
-    const user = users[req.params.userId];
-    if(!user) return res.status(404).json({msg: "Joueur non trouvé"});
+// MODULE IA PROVERBE LINGALA=FRANÇAIS
+const proverbes = [
+    {ctx: "gorille", lingala: "Loboko moko ezali kokende te", fr: "Une seule main ne ramasse pas la farine"},
+    {ctx: "comeback", lingala: "Mutu oyo akufi te akokufa lisusu te", fr: "Celui qui n'est pas mort ne mourra plus"},
+    {ctx: "victoire", lingala: "Ndeke moko ekotaka te na likolo", fr: "Un seul oiseau ne vole pas au ciel"},
+    {ctx: "defaite", lingala: "Nzela ya moke ememaka na nzela ya monene", fr: "Un petit chemin mène au grand chemin"}
+];
+
+// ROUTE 1: ACHETER PIÈCES = 1$ = 100 PIÈCES
+app.post('/pieces/acheter', (req, res) => {
+    const {userId, dollars} = req.body;
+    const piecesAchetees = dollars * 100;
+    users[userId].pieces += piecesAchetees;
+    users[userId].solde -= dollars;
+    res.json({msg: `+${piecesAchetees} Pièces achetées`, pieces: users[userId].pieces});
+});
+
+// ROUTE 2: LANCER COMBAT 4J - LOI: ÉNERGIE DOIT ÊTRE 100
+app.post('/combat/lancer', (req, res) => {
+    const {j1, j2, mise} = req.body;
+    if(users[j1].energie < 100 || users[j2].energie < 100) return res.status(400).json({msg: "ÉNERGIE pas pleine. Remplir d'abord"});
+    users[j1].energie = 0; users[j2].energie = 0;
+    users[j1].pieces -= mise; users[j2].pieces -= mise;
+    res.json({msg: `Combat lancé! Mise totale: ${mise*2}P. Durée: 3min`});
+});
+
+// ROUTE 3: FIN COMBAT - LOI DU PRÉSIDENT 50% | 48% | 2%
+app.post('/combat/fin', (req, res) => {
+    const {gagnant, miseTotale} = req.body;
+    const partGagnant = miseTotale * 0.48;
+    const partApp = miseTotale * 0.50;
+    const partBrule = miseTotale * 0.02;
+    
+    users[gagnant].pieces += miseTotale + partGagnant;
+    users[gagnant].xp += 200;
+    caisseApp += partApp;
+    caisseBrule += partBrule;
+    
     res.json({
-        ENERGIE: user.energie,
-        PIECES: user.pieces,
-        GRADE: user.grade,
-        CONSERVE: user.conserve,
-        SOLDE: user.solde + "$"
+        msg: `Victoire! +${miseTotale + partGagnant}P +200 XP`, 
+        repartition: {gagnant: partGagnant, app: partApp, brule: partBrule}
     });
 });
 
-// ROUTE 2: REMPLIR ÉNERGIE LOI = 1 Pièce = 1 HP
-app.post('/energie/acheter', (req, res) => {
-    const {userId, pieces} = req.body;
-    if(users[userId].pieces < pieces) return res.status(400).json({msg: "Pas assez de pièces"});
-    users[userId].pieces -= pieces;
-    users[userId].energie += pieces;
-    if(users[userId].energie > 100) users[userId].energie = 100;
-    res.json({msg: `ÉNERGIE remplie. Nouveau PV: ${users[userId].energie}`});
+// ROUTE 4: PROVERBE AUTO
+app.post('/ia/proverbe', (req, res) => {
+    const {contexte} = req.body;
+    const prov = proverbes.find(p => p.ctx === contexte) || proverbes[0];
+    res.json({proverbe: `${prov.lingala} = ${prov.fr}`});
 });
 
-// ROUTE 3: GAGNER XP QUAND ON ENVOIE = +1 XP / 2 Pièces
-app.post('/xp/envoyer', (req, res) => {
-    const {userId, pieces} = req.body;
-    const xpGagne = Math.floor(pieces / 2);
-    users[userId].xp = (users[userId].xp || 0) + xpGagne;
-    res.json({msg: `+${xpGagne} XP. Total: ${users[userId].xp}`});
+// ROUTE 5: VOIR LES CAISSES
+app.get('/caisses', (req, res) => {
+    res.json({app: caisseApp, brule: caisseBrule});
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`FONBACO SERVER ACTIF SUR PORT ${PORT}`));
+app.listen(PORT, () => console.log(`FONBACO SERVER ACTIF LOI 50-48-2`));
