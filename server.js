@@ -1,5 +1,5 @@
-// FONBACO SERVER.JS - BLOC 3/5
-// LOI: RÉPARTITION 50% APP | 48% GAGNANT | 2% BRÛLÉ + MONNAIE
+// FONBACO SERVER.JS - BLOC 4/5
+// LOI: GRADE 0→100 + CONSERVE + TOUTES LES LOIS
 
 const express = require('express');
 const app = express();
@@ -7,10 +7,10 @@ app.use(express.json());
 
 // BASE DE DONNÉES
 let users = {"test-user": {energie: 100, pieces: 500, grade: 0, conserve: 0, solde: 0, xp: 0}};
-let caisseApp = 0; // Coffre de l'Application
-let caisseBrule = 0; // Coffre brûlé
+let caisseApp = 0;
+let caisseBrule = 0;
 
-// MODULE IA PROVERBE LINGALA=FRANÇAIS
+// MODULE IA PROVERBE
 const proverbes = [
     {ctx: "gorille", lingala: "Loboko moko ezali kokende te", fr: "Une seule main ne ramasse pas la farine"},
     {ctx: "comeback", lingala: "Mutu oyo akufi te akokufa lisusu te", fr: "Celui qui n'est pas mort ne mourra plus"},
@@ -18,25 +18,34 @@ const proverbes = [
     {ctx: "defaite", lingala: "Nzela ya moke ememaka na nzela ya monene", fr: "Un petit chemin mène au grand chemin"}
 ];
 
-// ROUTE 1: ACHETER PIÈCES = 1$ = 100 PIÈCES
+// LOI 1: MONTER GRADE. 1000 XP = +1 GRADE
+function monterGrade(userId){
+    if(users[userId].xp >= 1000){
+        users[userId].xp -= 1000;
+        users[userId].grade += 1;
+        return true;
+    }
+    return false;
+}
+
+// ROUTE 1: ACHETER PIÈCES
 app.post('/pieces/acheter', (req, res) => {
     const {userId, dollars} = req.body;
-    const piecesAchetees = dollars * 100;
-    users[userId].pieces += piecesAchetees;
+    users[userId].pieces += dollars * 100;
     users[userId].solde -= dollars;
-    res.json({msg: `+${piecesAchetees} Pièces achetées`, pieces: users[userId].pieces});
+    res.json({msg: `+${dollars*100} Pièces`, pieces: users[userId].pieces});
 });
 
-// ROUTE 2: LANCER COMBAT 4J - LOI: ÉNERGIE DOIT ÊTRE 100
+// ROUTE 2: LANCER COMBAT
 app.post('/combat/lancer', (req, res) => {
     const {j1, j2, mise} = req.body;
-    if(users[j1].energie < 100 || users[j2].energie < 100) return res.status(400).json({msg: "ÉNERGIE pas pleine. Remplir d'abord"});
+    if(users[j1].energie < 100 || users[j2].energie < 100) return res.status(400).json({msg: "ÉNERGIE pas pleine"});
     users[j1].energie = 0; users[j2].energie = 0;
     users[j1].pieces -= mise; users[j2].pieces -= mise;
-    res.json({msg: `Combat lancé! Mise totale: ${mise*2}P. Durée: 3min`});
+    res.json({msg: `Combat lancé! Mise: ${mise*2}P`});
 });
 
-// ROUTE 3: FIN COMBAT - LOI DU PRÉSIDENT 50% | 48% | 2%
+// ROUTE 3: FIN COMBAT - LOI 50% | 48% | 2%
 app.post('/combat/fin', (req, res) => {
     const {gagnant, miseTotale} = req.body;
     const partGagnant = miseTotale * 0.48;
@@ -48,23 +57,31 @@ app.post('/combat/fin', (req, res) => {
     caisseApp += partApp;
     caisseBrule += partBrule;
     
-    res.json({
-        msg: `Victoire! +${miseTotale + partGagnant}P +200 XP`, 
-        repartition: {gagnant: partGagnant, app: partApp, brule: partBrule}
-    });
+    // VÉRIFIER SI MONTEE DE GRADE
+    if(monterGrade(gagnant)) res.json({msg: `Victoire! +200 XP + GRADE UP! Nouveau Grade: ${users[gagnant].grade}`});
+    else res.json({msg: `Victoire! +200 XP. XP Total: ${users[gagnant].xp}`});
 });
 
-// ROUTE 4: PROVERBE AUTO
+// ROUTE 4: METTRE EN CONSERVE - LOI: VERROUILLÉ 7 JOURS
+app.post('/conserve/mettre', (req, res) => {
+    const {userId, pieces} = req.body;
+    if(users[userId].pieces < pieces) return res.status(400).json({msg: "Pas assez de pièces"});
+    users[userId].pieces -= pieces;
+    users[userId].conserve += pieces;
+    res.json({msg: `${pieces}P mises en CONSERVE. Déverrouillage dans 7 jours`});
+});
+
+// ROUTE 5: PROVERBE AUTO
 app.post('/ia/proverbe', (req, res) => {
     const {contexte} = req.body;
     const prov = proverbes.find(p => p.ctx === contexte) || proverbes[0];
     res.json({proverbe: `${prov.lingala} = ${prov.fr}`});
 });
 
-// ROUTE 5: VOIR LES CAISSES
-app.get('/caisses', (req, res) => {
-    res.json({app: caisseApp, brule: caisseBrule});
+// ROUTE 6: VOIR PROFIL COMPLET
+app.get('/profil/:userId', (req, res) => {
+    res.json(users[req.params.userId]);
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`FONBACO SERVER ACTIF LOI 50-48-2`));
+app.listen(PORT, () => console.log(`FONBACO SERVER ACTIF - GRADE + CONSERVE`));
