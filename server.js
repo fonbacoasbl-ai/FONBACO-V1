@@ -1,16 +1,16 @@
-// FONBACO SERVER.JS - BLOC 4/5
-// LOI: GRADE 0→100 + CONSERVE + TOUTES LES LOIS
+// FONBACO SERVER.JS - BLOC 5/5 FINAL
+// LOI COMPLÈTE: RETRAIT + REGEN ÉNERGIE + TOUT
 
 const express = require('express');
 const app = express();
 app.use(express.json());
 
 // BASE DE DONNÉES
-let users = {"test-user": {energie: 100, pieces: 500, grade: 0, conserve: 0, solde: 0, xp: 0}};
+let users = {"test-user": {energie: 100, pieces: 500, grade: 0, conserve: 0, solde: 0, xp: 0, lastEnergy: Date.now()}};
 let caisseApp = 0;
 let caisseBrule = 0;
 
-// MODULE IA PROVERBE
+// MODULE IA PROVERBE LINGALA=FRANÇAIS
 const proverbes = [
     {ctx: "gorille", lingala: "Loboko moko ezali kokende te", fr: "Une seule main ne ramasse pas la farine"},
     {ctx: "comeback", lingala: "Mutu oyo akufi te akokufa lisusu te", fr: "Celui qui n'est pas mort ne mourra plus"},
@@ -18,7 +18,16 @@ const proverbes = [
     {ctx: "defaite", lingala: "Nzela ya moke ememaka na nzela ya monene", fr: "Un petit chemin mène au grand chemin"}
 ];
 
-// LOI 1: MONTER GRADE. 1000 XP = +1 GRADE
+// LOI: REGENERATION ENERGIE = +1 PV / 5 MINUTES
+setInterval(() => {
+    for(let userId in users){
+        if(users[userId].energie < 100){
+            users[userId].energie += 1;
+        }
+    }
+}, 5 * 60 * 1000); // 5 minutes
+
+// LOI: MONTER GRADE. 1000 XP = +1 GRADE
 function monterGrade(userId){
     if(users[userId].xp >= 1000){
         users[userId].xp -= 1000;
@@ -28,7 +37,7 @@ function monterGrade(userId){
     return false;
 }
 
-// ROUTE 1: ACHETER PIÈCES
+// ROUTE 1: ACHETER PIÈCES = 1$ = 100 PIÈCES
 app.post('/pieces/acheter', (req, res) => {
     const {userId, dollars} = req.body;
     users[userId].pieces += dollars * 100;
@@ -36,7 +45,7 @@ app.post('/pieces/acheter', (req, res) => {
     res.json({msg: `+${dollars*100} Pièces`, pieces: users[userId].pieces});
 });
 
-// ROUTE 2: LANCER COMBAT
+// ROUTE 2: LANCER COMBAT 4J
 app.post('/combat/lancer', (req, res) => {
     const {j1, j2, mise} = req.body;
     if(users[j1].energie < 100 || users[j2].energie < 100) return res.status(400).json({msg: "ÉNERGIE pas pleine"});
@@ -57,31 +66,38 @@ app.post('/combat/fin', (req, res) => {
     caisseApp += partApp;
     caisseBrule += partBrule;
     
-    // VÉRIFIER SI MONTEE DE GRADE
-    if(monterGrade(gagnant)) res.json({msg: `Victoire! +200 XP + GRADE UP! Nouveau Grade: ${users[gagnant].grade}`});
-    else res.json({msg: `Victoire! +200 XP. XP Total: ${users[gagnant].xp}`});
+    if(monterGrade(gagnant)) res.json({msg: `Victoire! +200 XP + GRADE UP! Grade: ${users[gagnant].grade}`});
+    else res.json({msg: `Victoire! +200 XP. XP: ${users[gagnant].xp}`});
 });
 
-// ROUTE 4: METTRE EN CONSERVE - LOI: VERROUILLÉ 7 JOURS
+// ROUTE 4: METTRE EN CONSERVE
 app.post('/conserve/mettre', (req, res) => {
     const {userId, pieces} = req.body;
-    if(users[userId].pieces < pieces) return res.status(400).json({msg: "Pas assez de pièces"});
     users[userId].pieces -= pieces;
     users[userId].conserve += pieces;
-    res.json({msg: `${pieces}P mises en CONSERVE. Déverrouillage dans 7 jours`});
+    res.json({msg: `${pieces}P en CONSERVE. 7 jours`});
 });
 
-// ROUTE 5: PROVERBE AUTO
+// ROUTE 5: RETRAIT - LOI: MINIMUM 100$
+app.post('/retrait', (req, res) => {
+    const {userId, dollars} = req.body;
+    if(dollars < 100) return res.status(400).json({msg: "RETRAIT MINIMUM 100$"});
+    if(users[userId].solde < dollars) return res.status(400).json({msg: "Solde insuffisant"});
+    users[userId].solde -= dollars;
+    res.json({msg: `Demande de retrait ${dollars}$ envoyée. Traitement 24h`});
+});
+
+// ROUTE 6: PROVERBE AUTO
 app.post('/ia/proverbe', (req, res) => {
     const {contexte} = req.body;
     const prov = proverbes.find(p => p.ctx === contexte) || proverbes[0];
     res.json({proverbe: `${prov.lingala} = ${prov.fr}`});
 });
 
-// ROUTE 6: VOIR PROFIL COMPLET
+// ROUTE 7: VOIR PROFIL COMPLET
 app.get('/profil/:userId', (req, res) => {
     res.json(users[req.params.userId]);
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`FONBACO SERVER ACTIF - GRADE + CONSERVE`));
+app.listen(PORT, () => console.log(`FONBACO SERVER V1.0 ACTIF - TOUTES LES LOIS`));
