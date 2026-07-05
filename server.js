@@ -100,4 +100,7 @@ app.get('/profil/:userId', (req, res) => {
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`FONBACO SERVER V1.0 ACTIF - TOUTES LES LOIS`));
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, '0.0.0.0', () => { 
+      console.log(`FONBACO SERVER ACTIF SUR ${PORT}`); 
+    });
